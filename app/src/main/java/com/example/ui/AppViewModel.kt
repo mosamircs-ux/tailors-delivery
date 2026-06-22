@@ -539,6 +539,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun triggerAIDesignSketch(promptText: String) {
+        viewModelScope.launch {
+            _aiGenerationLoading.value = true
+            _aiGenResult.value = null
+            try {
+                val result = GeminiClient.generateFashionSketch(promptText)
+                _aiGenResult.value = result
+            } catch (e: Exception) {
+                Log.e(TAG, "Error generating fashion sketch: ${e.message}", e)
+            } finally {
+                _aiGenerationLoading.value = false
+            }
+        }
+    }
+
     fun clearAIGeneratorResult() {
         _aiGenResult.value = null
     }

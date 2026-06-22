@@ -21,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -1512,18 +1513,702 @@ val BlueAccent = Color(0xFF3498DB)
 // AI DESIGN STUDIO (GEMINI POWERED)
 // ----------------------------------------------------
 @Composable
+fun BespokeSketchCanvas(
+    result: com.example.network.AIDesignResult,
+    modifier: Modifier = Modifier
+) {
+    val garmentType = result.garmentType ?: "shirt"
+    val primaryColor = try { Color(android.graphics.Color.parseColor(result.primaryColorHex ?: "#2C3E50")) } catch(e: Exception) { Color(0xFF2C3E50) }
+    val secondaryColor = try { Color(android.graphics.Color.parseColor(result.secondaryColorHex ?: "#E67E22")) } catch(e: Exception) { Color(0xFFE67E22) }
+    val sleeveStyle = result.sleeveStyle ?: "long"
+    val necklineStyle = result.necklineStyle ?: "round"
+    val accents = result.designAccents ?: emptyList()
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(280.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFF9F6F0)) // Premium Parchment Paper color
+            .border(1.dp, Color(0xFFE0D8CB), RoundedCornerShape(12.dp))
+            .testTag("bespoke_sketch_canvas")
+    ) {
+        // Draw the custom fashion blueprint sketching sheet
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = size.width
+            val height = size.height
+
+            // 1. Draw Tailor Grid guidelines
+            val gridSpacing = 20.dp.toPx()
+            // Vertical grid lines
+            var x = 0f
+            while (x < width) {
+                drawLine(
+                    color = Color(0xFFEAE5D9),
+                    start = Offset(x, 0f),
+                    end = Offset(x, height),
+                    strokeWidth = 1f
+                )
+                x += gridSpacing
+            }
+            // Horizontal grid lines
+            var y = 0f
+            while (y < height) {
+                drawLine(
+                    color = Color(0xFFEAE5D9),
+                    start = Offset(0f, y),
+                    end = Offset(width, y),
+                    strokeWidth = 1f
+                )
+                y += gridSpacing
+            }
+
+            // 2. Draw Measurement Rules on edges
+            // Top Ruler tick marks
+            for (tick in 0..width.toInt() step 30) {
+                val tickLen = if (tick % 90 == 0) 15f else 8f
+                drawLine(
+                    color = Color(0xFFB0A595),
+                    start = Offset(tick.toFloat(), 0f),
+                    end = Offset(tick.toFloat(), tickLen),
+                    strokeWidth = 1.5f
+                )
+            }
+            // Left Ruler tick marks
+            for (tick in 0..height.toInt() step 30) {
+                val tickLen = if (tick % 90 == 0) 15f else 8f
+                drawLine(
+                    color = Color(0xFFB0A595),
+                    start = Offset(0f, tick.toFloat()),
+                    end = Offset(tickLen, tick.toFloat()),
+                    strokeWidth = 1.5f
+                )
+            }
+
+            // Draw center axes guidelines (dotted)
+            val centerAxisX = width / 2
+            val centerAxisY = height / 2 + 10.dp.toPx()
+
+            // Draw technical cross-hairs & waist-line guides
+            drawLine(
+                color = Color(0xFFC4BBAF),
+                start = Offset(centerAxisX, 20f),
+                end = Offset(centerAxisX, height - 20f),
+                strokeWidth = 1f,
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+            )
+            // Waist line
+            drawLine(
+                color = Color(0xFFC4BBAF),
+                start = Offset(40f, centerAxisY),
+                end = Offset(width - 40f, centerAxisY),
+                strokeWidth = 1f,
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+            )
+
+            // Let's draw the Garment Outline Sketch automatically!
+            // We configure the drawing coordinates around centerAxisX, centerAxisY
+            val baseWidth = 70.dp.toPx()
+            val waistWidth = 60.dp.toPx()
+            val shoulderWidth = 80.dp.toPx()
+            val topY = centerAxisY - 90.dp.toPx()
+            val hemY = centerAxisY + 90.dp.toPx()
+
+            val garmentPath = Path()
+            
+            // Draw garment depending on garmentType
+            when (garmentType) {
+                "dress" -> {
+                    // Flare out dress hem
+                    val flareHemWidth = 120.dp.toPx()
+                    garmentPath.moveTo(centerAxisX - shoulderWidth / 2, topY) // Top Left Shoulder
+                    garmentPath.lineTo(centerAxisX + shoulderWidth / 2, topY) // Top Right Shoulder
+                    garmentPath.lineTo(centerAxisX + waistWidth / 2, centerAxisY) // Waist Right
+                    garmentPath.lineTo(centerAxisX + flareHemWidth / 2, hemY) // Flare Hem Right
+                    garmentPath.lineTo(centerAxisX - flareHemWidth / 2, hemY) // Flare Hem Left
+                    garmentPath.lineTo(centerAxisX - waistWidth / 2, centerAxisY) // Waist Left
+                    garmentPath.close()
+                }
+                "jacket", "suit" -> {
+                    // Structured jacket silhouette
+                    garmentPath.moveTo(centerAxisX - shoulderWidth / 2, topY)
+                    garmentPath.lineTo(centerAxisX + shoulderWidth / 2, topY)
+                    garmentPath.lineTo(centerAxisX + baseWidth / 2, centerAxisY)
+                    garmentPath.lineTo(centerAxisX + baseWidth / 2, hemY - 20.dp.toPx())
+                    garmentPath.lineTo(centerAxisX - baseWidth / 2, hemY - 20.dp.toPx())
+                    garmentPath.lineTo(centerAxisX - baseWidth / 2, centerAxisY)
+                    garmentPath.close()
+                }
+                "kaftan" -> {
+                    // Flowing robe silhouette (Very long and wide)
+                    val robeHemWidth = 110.dp.toPx()
+                    garmentPath.moveTo(centerAxisX - shoulderWidth / 2, topY)
+                    garmentPath.lineTo(centerAxisX + shoulderWidth / 2, topY)
+                    garmentPath.lineTo(centerAxisX + robeHemWidth / 2, centerAxisY)
+                    garmentPath.lineTo(centerAxisX + robeHemWidth / 2, hemY + 15.dp.toPx())
+                    garmentPath.lineTo(centerAxisX - robeHemWidth / 2, hemY + 15.dp.toPx())
+                    garmentPath.lineTo(centerAxisX - robeHemWidth / 2, centerAxisY)
+                    garmentPath.close()
+                }
+                else -> { // "shirt"
+                    // Standard shirt silhouette
+                    garmentPath.moveTo(centerAxisX - shoulderWidth / 2, topY)
+                    garmentPath.lineTo(centerAxisX + shoulderWidth / 2, topY)
+                    garmentPath.lineTo(centerAxisX + baseWidth / 2, centerAxisY)
+                    garmentPath.lineTo(centerAxisX + baseWidth / 2, hemY - 30.dp.toPx())
+                    garmentPath.lineTo(centerAxisX - baseWidth / 2, hemY - 30.dp.toPx())
+                    garmentPath.lineTo(centerAxisX - baseWidth / 2, centerAxisY)
+                    garmentPath.close()
+                }
+            }
+
+            // Fill Garment with the chosen primaryColor at low opacity for sketch fill
+            drawPath(
+                path = garmentPath,
+                color = primaryColor.copy(alpha = 0.3f)
+            )
+
+            // Draw Outer seams/lines
+            drawPath(
+                path = garmentPath,
+                color = primaryColor,
+                style = Stroke(
+                    width = 3.dp.toPx(),
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    join = androidx.compose.ui.graphics.StrokeJoin.Round
+                )
+            )
+
+            // 3. Draw Sleeves
+            if (sleeveStyle != "sleeveless") {
+                val outerSleeveLen = if (sleeveStyle == "short") 35.dp.toPx() else 95.dp.toPx()
+                val sleeveCuffY = topY + outerSleeveLen
+                
+                // Left Sleeve
+                val leftSleevePath = Path().apply {
+                    moveTo(centerAxisX - shoulderWidth / 2, topY)
+                    lineTo(centerAxisX - shoulderWidth / 2 - 25.dp.toPx(), topY + 15.dp.toPx()) // Shoulder slope
+                    lineTo(centerAxisX - shoulderWidth / 2 - 20.dp.toPx(), sleeveCuffY) // Cuff
+                    lineTo(centerAxisX - shoulderWidth / 2 + 5.dp.toPx(), topY + 30.dp.toPx()) // Armpit
+                    close()
+                }
+                drawPath(path = leftSleevePath, color = primaryColor.copy(alpha = 0.25f))
+                drawPath(path = leftSleevePath, color = primaryColor, style = Stroke(width = 2.5f.dp.toPx()))
+
+                // Right Sleeve
+                val rightSleevePath = Path().apply {
+                    moveTo(centerAxisX + shoulderWidth / 2, topY)
+                    lineTo(centerAxisX + shoulderWidth / 2 + 25.dp.toPx(), topY + 15.dp.toPx()) // Shoulder slope
+                    lineTo(centerAxisX + shoulderWidth / 2 + 20.dp.toPx(), sleeveCuffY) // Cuff
+                    lineTo(centerAxisX + shoulderWidth / 2 - 5.dp.toPx(), topY + 30.dp.toPx()) // Armpit
+                    close()
+                }
+                drawPath(path = rightSleevePath, color = primaryColor.copy(alpha = 0.25f))
+                drawPath(path = rightSleevePath, color = primaryColor, style = Stroke(width = 2.5f.dp.toPx()))
+            }
+
+            // 4. Draw Neckline/Collar
+            val neckPath = Path()
+            val collarRadius = 16.dp.toPx()
+            when (necklineStyle) {
+                "v-neck" -> {
+                    neckPath.moveTo(centerAxisX - collarRadius, topY)
+                    neckPath.lineTo(centerAxisX, topY + collarRadius + 5f)
+                    neckPath.lineTo(centerAxisX + collarRadius, topY)
+                }
+                "high-collar" -> {
+                    // Draw a standing collar box
+                    neckPath.moveTo(centerAxisX - collarRadius, topY)
+                    neckPath.lineTo(centerAxisX - collarRadius, topY - 12.dp.toPx())
+                    neckPath.lineTo(centerAxisX + collarRadius, topY - 12.dp.toPx())
+                    neckPath.lineTo(centerAxisX + collarRadius, topY)
+                    neckPath.close()
+                }
+                "lapel" -> {
+                    // Double lines representing suit lapels crossing
+                    neckPath.moveTo(centerAxisX - collarRadius, topY)
+                    neckPath.lineTo(centerAxisX - collarRadius + 5f, topY + collarRadius)
+                    neckPath.lineTo(centerAxisX, topY + 2.5f * collarRadius)
+                    neckPath.lineTo(centerAxisX + collarRadius - 5f, topY + collarRadius)
+                    neckPath.lineTo(centerAxisX + collarRadius, topY)
+                }
+                else -> { // "round"
+                    neckPath.moveTo(centerAxisX - collarRadius, topY)
+                    neckPath.cubicTo(
+                        centerAxisX - collarRadius / 2, topY + collarRadius / 1.5f,
+                        centerAxisX + collarRadius / 2, topY + collarRadius / 1.5f,
+                        centerAxisX + collarRadius, topY
+                    )
+                }
+            }
+            drawPath(path = neckPath, color = secondaryColor, style = Stroke(width = 2.5f.dp.toPx()))
+
+            // 5. Draw decorative accents on the sketch
+            if (garmentType in listOf("shirt", "jacket", "suit", "kaftan")) {
+                val buttonStartY = topY + 25.dp.toPx()
+                val buttonEndY = hemY - 40.dp.toPx()
+                val step = 18.dp.toPx()
+                var currentButtonY = buttonStartY
+                while (currentButtonY <= buttonEndY) {
+                    drawCircle(
+                        color = secondaryColor,
+                        radius = 3.dp.toPx(),
+                        center = Offset(centerAxisX, currentButtonY)
+                    )
+                    currentButtonY += step
+                }
+            }
+
+            if (garmentType == "suit" || garmentType == "jacket") {
+                val pocketX = centerAxisX - 25.dp.toPx()
+                val pocketY = topY + 30.dp.toPx()
+                drawRect(
+                    color = secondaryColor.copy(alpha = 0.2f),
+                    topLeft = Offset(pocketX, pocketY),
+                    size = androidx.compose.ui.geometry.Size(14.dp.toPx(), 12.dp.toPx())
+                )
+                drawRect(
+                    color = secondaryColor,
+                    topLeft = Offset(pocketX, pocketY),
+                    size = androidx.compose.ui.geometry.Size(14.dp.toPx(), 12.dp.toPx()),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+            }
+
+            // Annotation leaders
+            val arrowLeftStart = Offset(centerAxisX - 45.dp.toPx(), topY + 45.dp.toPx())
+            val arrowLeftEnd = Offset(25.dp.toPx(), topY + 15.dp.toPx())
+            drawLine(
+                color = Color(0xFF7F8C8D),
+                start = arrowLeftStart,
+                end = arrowLeftEnd,
+                strokeWidth = 1f,
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
+            )
+            drawCircle(color = Color(0xFF7F8C8D), radius = 2.dp.toPx(), center = arrowLeftStart)
+
+            val arrowRightStart = Offset(centerAxisX + 35.dp.toPx(), centerAxisY + 30.dp.toPx())
+            val arrowRightEnd = Offset(width - 30.dp.toPx(), centerAxisY + 70.dp.toPx())
+            drawLine(
+                color = Color(0xFF7F8C8D),
+                start = arrowRightStart,
+                end = arrowRightEnd,
+                strokeWidth = 1f,
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
+            )
+            drawCircle(color = Color(0xFF7F8C8D), radius = 2.dp.toPx(), center = arrowRightStart)
+        }
+
+        Text(
+            text = "SPEC. STYLE: ${necklineStyle.uppercase()} / ${sleeveStyle.uppercase()}",
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            fontSize = 9.sp,
+            color = Color(0xFF7F8C8D),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(10.dp)
+        )
+
+        val accentText = accents.take(2).joinToString(" • ")
+        if (accentText.isNotEmpty()) {
+            Text(
+                text = "ACCENTS: $accentText",
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                fontSize = 8.5.sp,
+                color = Color(0xFF7F8C8D),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(10.dp)
+            )
+        }
+
+        Text(
+            text = "DRAFT BLUEPRINT SCALE 1:10",
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFF95A5A6),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(10.dp)
+        )
+    }
+}
+
+// ----------------------------------------------------
+// PREMIUM FABRICS & SCHEMES STRUCTURES
+// ----------------------------------------------------
+data class PremiumMaterial(
+    val id: String,
+    val nameEn: String,
+    val nameAr: String,
+    val detailsEn: String,
+    val detailsAr: String,
+    val priceEgp: Int,
+    val threadInfoEn: String,
+    val threadInfoAr: String
+)
+
+data class PremiumColor(
+    val id: String,
+    val nameEn: String,
+    val nameAr: String,
+    val hexValue: String
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun MaterialSelectionComponent(
+    userLanguage: String,
+    selectedMaterial: PremiumMaterial,
+    onMaterialSelected: (PremiumMaterial) -> Unit,
+    selectedColor: PremiumColor,
+    onColorSelected: (PremiumColor) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val premiumMaterials = remember {
+        listOf(
+            PremiumMaterial(
+                id = "giza_cotton",
+                nameEn = "Pure Egyptian Giza Cotton",
+                nameAr = "قطن جيزة المصري الفاخر",
+                detailsEn = "Super-long cotton fiber known for ultimate strength, silk-like luster, and exquisite breathability. Perfect for bespoke luxury shirts & kaftans.",
+                detailsAr = "ألياف قطنية فائقة الطول تشتهر بقوتها العالية، ولمعانها الحريري، وتهويتها الرائعة. مثالية للقمصان الفاخرة والقواطين.",
+                priceEgp = 450,
+                threadInfoEn = "120/2 Double Ply Weave",
+                threadInfoAr = "حياكة مزدوجة الطبقات ١٢٠/٢"
+            ),
+            PremiumMaterial(
+                id = "italian_linen",
+                nameEn = "Royal Italian Linen",
+                nameAr = "كتان إيطالي ملكي",
+                detailsEn = "Pre-washed flax linen offering an incredibly soft handfeel and a gorgeous relaxed drape. Superior thermoregulation.",
+                detailsAr = "كتان مغسول مسبقًا يوفر ملمسًا ناعمًا ومظهرًا مسترخيًا جذابًا. تنظيم حراري ممتاز لتناسب كل الفصول.",
+                priceEgp = 380,
+                threadInfoEn = "Pure Bio-Washed Flax",
+                threadInfoAr = "كتان نقي بيولوجي مغسول"
+            ),
+            PremiumMaterial(
+                id = "mulberry_silk",
+                nameEn = "Mulberry Silk Blend",
+                nameAr = "حرير التوت الطبيعي المختلط",
+                detailsEn = "Satin silk with a highly reflective surface and graceful fluid drapery. Ideal for custom couture gowns & luxury robes.",
+                detailsAr = "حرير التوت الطبيعي اللامع، ذو ذيل منسدل رشيق وانسيابية عالية. مثالي لفساتين السهرة والعباءات الراقية.",
+                priceEgp = 650,
+                threadInfoEn = "100% Organic Satin Silk",
+                threadInfoAr = "حرير ساتان طبيعي ١٠٠٪"
+            ),
+            PremiumMaterial(
+                id = "cashmere_wool",
+                nameEn = "Bespoke Cashmere Wool",
+                nameAr = "صوف كشمير مخصص",
+                detailsEn = "Finely spun high-micron wool fibers. Exceptionally light yet provides unparalleled insulation and premium structured tailoring.",
+                detailsAr = "ألياف صوف كشمير ناعمة. خبيت مخصص رقيق وسوبر ١٤٠ دقيق، وهيكل متقن للبدل الفاخرة.",
+                priceEgp = 800,
+                threadInfoEn = "Super 140s Cashmere Thread",
+                threadInfoAr = "خيط صوف كشمير سوبر ١٤٠"
+            ),
+            PremiumMaterial(
+                id = "brocade_jacquard",
+                nameEn = "Damask Brocade Jacquard",
+                nameAr = "حرير دمشقي جاكار",
+                detailsEn = "Intricate raised metallic and gold patterns woven into heavy rich silk. Retains stiff elegant shape lines and premium tailor lines.",
+                detailsAr = "نقوش كلاسيكية بارزة بخيوط مذهبة منسوجة مع الحرير الثقيل والفاخر. يحافظ على خطوط تفصيل أنيقة وبارزة.",
+                priceEgp = 720,
+                threadInfoEn = "Woven Ornate Jacquard",
+                threadInfoAr = "جاكار مزخرف منسوج"
+            )
+        )
+    }
+
+    val premiumColors = remember {
+        listOf(
+            PremiumColor("emerald", "Emerald Dynasty", "زمرد ملكي", "#1E5E3A"),
+            PremiumColor("indigo", "Midnight Indigo", "كحلي داكن", "#2B4C7E"),
+            PremiumColor("burgundy", "Royal Burgundy", "خمري فاخر", "#8B1E1E"),
+            PremiumColor("gold", "Sovereign Gold", "ذهبي ملكي", "#D4AF37"),
+            PremiumColor("parchment", "Warm Parchment", "أوف وايت ناعم", "#F4F0E6"),
+            PremiumColor("obsidian", "Obsidian Black", "أسود فحم", "#1A1A1A"),
+            PremiumColor("purple", "Imperial Purple", "بنفسجي إمبريالي", "#6D214F"),
+            PremiumColor("ochre", "Burnt Ochre", "أوكر برتقالي كلاسيك", "#D35400")
+        )
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 1. Color Selection Section
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = if (userLanguage == "ar") "اختر لون القماش الفاخر:" else "Select Premium Fabric Color:",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            // Horizontal scrolling row of colors
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                premiumColors.forEach { colorPreset ->
+                    val isSelected = colorPreset.id == selectedColor.id
+                    val colorNative = try {
+                        Color(android.graphics.Color.parseColor(colorPreset.hexValue))
+                    } catch (e: Exception) {
+                        Color.Gray
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clickable { onColorSelected(colorPreset) }
+                            .testTag("color_chip_${colorPreset.id}")
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(colorNative)
+                                .border(
+                                    width = if (isSelected) 3.dp else 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.4f),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = if (colorPreset.hexValue == "#F4F0E6") Color.Black else Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (userLanguage == "ar") colorPreset.nameAr else colorPreset.nameEn,
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Fabric Material Selection Section
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = if (userLanguage == "ar") "تصفّح واختر نوع القماش والوزن:" else "Browse & Select Custom Tailoring Fabric:",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            // Scrollable list of cards for premium fabrics
+            premiumMaterials.forEach { material ->
+                val isSelected = material.id == selectedMaterial.id
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onMaterialSelected(material) }
+                        .testTag("fabric_card_${material.id}"),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSelected) 
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) 
+                            else MaterialTheme.colorScheme.surface
+                    ),
+                    border = BorderStroke(
+                        width = if (isSelected) 2.dp else 1.dp,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Layers,
+                                    contentDescription = null,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = if (userLanguage == "ar") material.nameAr else material.nameEn,
+                                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            // Rounded Price Tag Badge
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.testTag("price_badge_${material.id}")
+                            ) {
+                                Text(
+                                    text = "${material.priceEgp} EGP/m",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Thread Count or Weave style
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.WorkspacePremium,
+                                contentDescription = null,
+                                tint = Color(0xFFF1C40F),
+                                modifier = Modifier.size(14.dp)
+                              )
+                            Text(
+                                text = if (userLanguage == "ar") material.threadInfoAr else material.threadInfoEn,
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Text(
+                            text = if (userLanguage == "ar") material.detailsAr else material.detailsEn,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun AIFashionStudio(
     appViewModel: AppViewModel,
     onSubmittedToTailor: () -> Unit
 ) {
+    val userLanguage by appViewModel.userLanguage.collectAsState()
+    
+    var studioModeTab by remember { mutableStateOf(0) } // 0 = Freeform Prompt, 1 = Guided Occasion
+    var garmentPrompt by remember { mutableStateOf("") }
+
     var occasion by remember { mutableStateOf("Formal wedding") }
     var style by remember { mutableStateOf("Elegant") }
     var bodyType by remember { mutableStateOf("Athletic Frame") }
-    var fabric by remember { mutableStateOf("Egyptian Cotton Premium") }
     var budgetStr by remember { mutableStateOf("3000") }
 
     val aiLoading by appViewModel.aiGenerationLoading.collectAsState()
     val aiResult by appViewModel.aiGenResult.collectAsState()
+
+    // ----------------------------------------------------
+    // PREMIUM MATERIAL & COLOR SCHEMES DEFINITION
+    // ----------------------------------------------------
+    val premiumMaterialsList = remember {
+        listOf(
+            PremiumMaterial(
+                id = "giza_cotton",
+                nameEn = "Pure Egyptian Giza Cotton",
+                nameAr = "قطن جيزة المصري الفاخر",
+                detailsEn = "Super-long cotton fiber known for ultimate strength, silk-like luster, and exquisite breathability. Perfect for bespoke luxury shirts & kaftans.",
+                detailsAr = "ألياف قطنية فائقة الطول تشتهر بقوتها العالية، ولمعانها الحريري، وتهويتها الرائعة. مثالية للقمصان الفاخرة والقواطين.",
+                priceEgp = 450,
+                threadInfoEn = "120/2 Double Ply Weave",
+                threadInfoAr = "حياكة مزدوجة الطبقات ١٢٠/٢"
+            ),
+            PremiumMaterial(
+                id = "italian_linen",
+                nameEn = "Royal Italian Linen",
+                nameAr = "كتان إيطالي ملكي",
+                detailsEn = "Pre-washed flax linen offering an incredibly soft handfeel and a gorgeous relaxed drape. Superior thermoregulation.",
+                detailsAr = "كتان مغسول مسبقًا يوفر ملمسًا ناعمًا ومظهرًا مسترخيًا جذابًا. تنظيم حراري ممتاز لتناسب كل الفصول.",
+                priceEgp = 380,
+                threadInfoEn = "Pure Bio-Washed Flax",
+                threadInfoAr = "كتان نقي بيولوجي مغسول"
+            ),
+            PremiumMaterial(
+                id = "mulberry_silk",
+                nameEn = "Mulberry Silk Blend",
+                nameAr = "حرير التوت الطبيعي المختلط",
+                detailsEn = "Satin silk with a highly reflective surface and graceful fluid drapery. Ideal for custom couture gowns & luxury robes.",
+                detailsAr = "حرير التوت الطبيعي اللامع، ذو ذيل منسدل رشيق وانسيابية عالية. مثالي لفساتين السهرة والعباءات الراقية.",
+                priceEgp = 650,
+                threadInfoEn = "100% Organic Satin Silk",
+                threadInfoAr = "حرير ساتان طبيعي ١٠٠٪"
+            ),
+            PremiumMaterial(
+                id = "cashmere_wool",
+                nameEn = "Bespoke Cashmere Wool",
+                nameAr = "صوف كشمير مخصص",
+                detailsEn = "Finely spun high-micron wool fibers. Exceptionally light yet provides unparalleled insulation and premium structured tailoring.",
+                detailsAr = "ألياف صوف كشمير ناعمة. خفيف الوزن بشكل استثنائي ومع ذلك يوفر عزل حراري مثالي وهيكل متين للبدل الفاخرة.",
+                priceEgp = 800,
+                threadInfoEn = "Super 140s Cashmere Thread",
+                threadInfoAr = "خيط صوف كشمير سوبر ١٤٠"
+            ),
+            PremiumMaterial(
+                id = "brocade_jacquard",
+                nameEn = "Damask Brocade Jacquard",
+                nameAr = "حرير دمشقي جاكار",
+                detailsEn = "Intricate raised metallic and gold patterns woven into heavy rich silk. Retains stiff elegant shape lines and premium tailor lines.",
+                detailsAr = "نقوش كلاسيكية بارزة بخيوط مذهبة منسوجة مع الحرير الثقيل والفاخر. يحافظ على خطوط تفصيل أنيقة وبارزة.",
+                priceEgp = 720,
+                threadInfoEn = "Woven Ornate Jacquard",
+                threadInfoAr = "جاكار مزخرف منسوج"
+            )
+        )
+    }
+
+    val premiumColorsList = remember {
+        listOf(
+            PremiumColor("emerald", "Emerald Dynasty", "زمرد ملكي", "#1E5E3A"),
+            PremiumColor("indigo", "Midnight Indigo", "كحلي داكن", "#2B4C7E"),
+            PremiumColor("burgundy", "Royal Burgundy", "خمري فاخر", "#8B1E1E"),
+            PremiumColor("gold", "Sovereign Gold", "ذهبي ملكي", "#D4AF37"),
+            PremiumColor("parchment", "Warm Parchment", "أوف وايت ناعم", "#F4F0E6"),
+            PremiumColor("obsidian", "Obsidian Black", "أسود فحم", "#1A1A1A"),
+            PremiumColor("purple", "Imperial Purple", "بنفسجي إمبريالي", "#6D214F"),
+            PremiumColor("ochre", "Burnt Ochre", "أوكر برتقالي كلاسيك", "#D35400")
+        )
+    }
+
+    var selectedMaterial by remember { mutableStateOf(premiumMaterialsList[0]) }
+    var selectedColor by remember { mutableStateOf(premiumColorsList[0]) }
+
+    // Synchronize selectedMaterial & selectedColor once result returns or changes to keep consistency
+    LaunchedEffect(aiResult) {
+        val res = aiResult
+        if (res != null) {
+            // Find best matching color from preset color list
+            val colorMatch = premiumColorsList.find { it.hexValue.equals(res.primaryColorHex, ignoreCase = true) }
+            if (colorMatch != null) {
+                selectedColor = colorMatch
+            }
+            // Find best matching fabric
+            val fabricMatch = premiumMaterialsList.find { mat ->
+                res.suggestedFabrics.any { sug -> mat.nameEn.contains(sug, ignoreCase = true) || sug.contains(mat.nameEn, ignoreCase = true) }
+            }
+            if (fabricMatch != null) {
+                selectedMaterial = fabricMatch
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1538,99 +2223,307 @@ fun AIFashionStudio(
             Text("AI Design Studio", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
         }
         Text(
-            "توليد فكرة ملابس متكاملة بالذكاء الاصطناعي بناءً على المناسبة والميزانية",
+            if (userLanguage == "ar") "اكتب فكرتك بالكامل لملابسك المخصصة وسيقوم الذكاء الاصطناعي برسمها وتفصيل مقاساتها فوراً" 
+            else "Input text descriptions of garment ideas and let the Gemini API analyze & generate initial custom design sketches.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
         )
 
+        // Mode Switching Tab Selector
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            val tabs = listOf(
+                Pair(if (userLanguage == "ar") "تصميم برسمة بالوصف" else "Custom Idea Sketch", 0),
+                Pair(if (userLanguage == "ar") "مساعد المناسبات الموجه" else "Guided Assistant", 1)
+            )
+            tabs.forEach { (title, idx) ->
+                val isSelected = studioModeTab == idx
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { studioModeTab = idx }
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        .padding(vertical = 10.dp)
+                        .testTag("studio_mode_tab_$idx"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
         Divider()
 
         if (aiResult == null) {
-            Text("Occasion / Purpose of Outfit", fontWeight = FontWeight.Bold)
-            val occasions = listOf("Formal wedding", "Corporate business", "Casual Beach wear", "Modern Street wear")
-            occasions.forEach { occ ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { occasion = occ }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(selected = occasion == occ, onClick = { occasion = occ })
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(occ)
-                }
-            }
+            if (studioModeTab == 0) {
+                // CASE 1: Custom Freeform Prompt Text
+                Text(
+                    text = if (userLanguage == "ar") "صِف فكرتك لقطعة الملابس:" else "Describe your custom garment idea:",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium
+                )
 
-            Text("Aesthetic Style Selection", fontWeight = FontWeight.Bold)
-            val styles = listOf("Elegant", "Minimalist", "Bold & Creative", "Heritage Traditional")
-            styles.forEach { st ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { style = st }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(selected = style == st, onClick = { style = st })
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(st)
-                }
-            }
-
-            OutlinedTextField(
-                value = bodyType,
-                onValueChange = { bodyType = it },
-                label = { Text("Describe frame details (e.g., Slim, Athletic, Broad Shoulder)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = budgetStr,
-                onValueChange = { budgetStr = it },
-                label = { Text("Your Estimated Budget (EGP)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            if (aiLoading) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CircularProgressIndicator()
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("AI Consulting Egyptian Tailor Masters...", style = MaterialTheme.typography.bodyMedium)
-                }
-            } else {
-                Button(
-                    onClick = {
-                        val budget = budgetStr.toDoubleOrNull() ?: 2000.0
-                        appViewModel.triggerAIDesign(
-                            occasion = occasion,
-                            style = style,
-                            bodyType = bodyType,
-                            fabric = fabric,
-                            budget = budget,
-                            colors = listOf("Red", "Blue")
+                OutlinedTextField(
+                    value = garmentPrompt,
+                    onValueChange = { garmentPrompt = it },
+                    placeholder = {
+                        Text(
+                            if (userLanguage == "ar")
+                                "مثال: عباءة أو فستان بلون أخضر زمردي مع ياقة عالية مرتفعة وتطريز ذهبي خفيف"
+                            else
+                                "e.g., An emerald green modern dress with a high collar, gold pocket button lines, and short sleeves"
                         )
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
-                        .testTag("ai_generate_button")
+                        .testTag("ai_garment_prompt_input"),
+                    minLines = 3,
+                    maxLines = 5
+                )
+
+                // ----------------------------------------------------
+                // PRE-GENERATION MATERIAL & COLOR SELECT PORTAL
+                // ----------------------------------------------------
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.15f)),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 ) {
-                    Text("Generate Custom AI Design Idea")
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = if (userLanguage == "ar") "🛠️ مواصفات القماش والتلوين المبدئية:" else "🛠️ Initial Material & Hue Settings:",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        MaterialSelectionComponent(
+                            userLanguage = userLanguage,
+                            selectedMaterial = selectedMaterial,
+                            onMaterialSelected = { selectedMaterial = it },
+                            selectedColor = selectedColor,
+                            onColorSelected = { selectedColor = it }
+                        )
+                    }
+                }
+
+                Text(
+                    text = if (userLanguage == "ar") "أفكار ملهمة (اضغط للتجربة):" else "Inspirations (Tap to try):",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                val inspirations = listOf(
+                    Pair(
+                        if (userLanguage == "ar") "🟢 قفطان أخضر زمردي مطرز بالذهب" else "🟢 Emerald Green Kaftan & gold button",
+                        "Emerald green light linen kaftan with high-collar mandarin neck, long sleeves, and gold embroidered stitch decorations"
+                    ),
+                    Pair(
+                        if (userLanguage == "ar") "🔵 بدلة رسمية كاجوال باللون الكحلي" else "🔵 Indigo Tailored Casual Suit",
+                        "Midnight indigo blue soft cashmere jacket suit with blazer lapels, long sleeves, and double parallel black buttons"
+                    ),
+                    Pair(
+                        if (userLanguage == "ar") "🔴 فستان أحمر جريء بدون أكمام" else "🔴 Bold Red Sleeveless Dress",
+                        "Crimson red formal flowing silk dress, sleeveless style with classic round neck and custom waist belt lines"
+                    ),
+                    Pair(
+                        if (userLanguage == "ar") "⚪ قميص كتان مريح باللون الأبيض" else "⚪ Classic White Linen V-Neck Shirt",
+                        "Off-white relaxed fit linen shirt with comfortable v-neck collar, short sleeves, and single pocket detail"
+                    )
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    inspirations.forEach { (label, fullPrompt) ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { garmentPrompt = fullPrompt }
+                                .testTag("inspire_${label.split(" ").firstOrNull() ?: "test"}"),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = Color(0xFFF1C40F), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(text = label, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (aiLoading) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = if (userLanguage == "ar") "جاري الاتصال بـ Gemini لرسم الفكرة وتوليد الأبعاد..." else "Gemini is designing your custom outfit blueprint...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            if (garmentPrompt.isNotBlank()) {
+                                // Enrich user description with exact selected material & color values so Gemini understands intent perfectly!
+                                val enrichedPrompt = if (userLanguage == "ar") {
+                                    "$garmentPrompt (تصميم مخصص بقماش ${selectedMaterial.nameEn} بلون أساسي ${selectedColor.nameEn} كود ${selectedColor.hexValue})"
+                                } else {
+                                    "$garmentPrompt (Tailored using fabric: ${selectedMaterial.nameEn} and prominent hex color: ${selectedColor.hexValue})"
+                                }
+                                appViewModel.triggerAIDesignSketch(enrichedPrompt)
+                            }
+                        },
+                        enabled = garmentPrompt.isNotBlank(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("ai_generate_sketch_button")
+                    ) {
+                        Text(if (userLanguage == "ar") "توليد رسمة ومواصفات التصميم" else "Draft Sketch & Design specs")
+                    }
+                }
+            } else {
+                // CASE 2: Guided Occasion Selections
+                Text("Occasion / Purpose of Outfit", fontWeight = FontWeight.Bold)
+                val occasions = listOf("Formal wedding", "Corporate business", "Casual Beach wear", "Modern Street wear")
+                occasions.forEach { occ ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { occasion = occ }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = occasion == occ, onClick = { occasion = occ })
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(occ)
+                    }
+                }
+
+                Text("Aesthetic Style Selection", fontWeight = FontWeight.Bold)
+                val styles = listOf("Elegant", "Minimalist", "Bold & Creative", "Heritage Traditional")
+                styles.forEach { st ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { style = st }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = style == st, onClick = { style = st })
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(st)
+                    }
+                }
+
+                // ----------------------------------------------------
+                // CASE 2 MATERIAL & COLOR CONFIG PANEL
+                // ----------------------------------------------------
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.15f)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        MaterialSelectionComponent(
+                            userLanguage = userLanguage,
+                            selectedMaterial = selectedMaterial,
+                            onMaterialSelected = { selectedMaterial = it },
+                            selectedColor = selectedColor,
+                            onColorSelected = { selectedColor = it }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                OutlinedTextField(
+                    value = bodyType,
+                    onValueChange = { bodyType = it },
+                    label = { Text("Describe frame details (e.g., Slim, Athletic, Broad Shoulder)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = budgetStr,
+                    onValueChange = { budgetStr = it },
+                    label = { Text("Your Estimated Budget (EGP)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (aiLoading) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("AI Consulting Egyptian Tailor Masters...", style = MaterialTheme.typography.bodyMedium)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            val budget = budgetStr.toDoubleOrNull() ?: 2000.0
+                            appViewModel.triggerAIDesign(
+                                occasion = occasion,
+                                style = style,
+                                bodyType = bodyType,
+                                fabric = selectedMaterial.nameEn,
+                                budget = budget,
+                                colors = listOf(selectedColor.nameEn)
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("ai_generate_button")
+                    ) {
+                        Text("Generate Custom AI Design Idea")
+                    }
                 }
             }
         } else {
-            // Displays generated design specs
+            // Displays generated design specs and active technical drawing sketch
             val res = aiResult!!
+
+            // Here we derive the customized outcome based on real-time material selection browsing on the client after generation!
+            val customizedResult = remember(res, selectedMaterial, selectedColor) {
+                // Base cost = Basic assembly master tailor rate (1500 EGP) + 3 meters of our selected premium luxury fabric!
+                val tailoredPrice = 1500.0 + (3.0 * selectedMaterial.priceEgp)
+                res.copy(
+                    primaryColorHex = selectedColor.hexValue,
+                    suggestedFabrics = listOf(selectedMaterial.nameEn),
+                    estimatedPrice = tailoredPrice
+                )
+            }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -1639,17 +2532,17 @@ fun AIFashionStudio(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = res.title,
+                            text = customizedResult.title,
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 20.sp,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = if (res.isApiPowered) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.secondary
+                            color = if (customizedResult.isApiPowered) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.secondary
                         ) {
                             Text(
-                                text = if (res.isApiPowered) "Gemini Generated" else "AI Craft Pro",
+                                text = if (customizedResult.isApiPowered) "Gemini Generated" else "AI Craft Pro",
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -1659,58 +2552,134 @@ fun AIFashionStudio(
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = res.description, style = MaterialTheme.typography.bodyMedium)
+                    Text(text = customizedResult.description, style = MaterialTheme.typography.bodyMedium)
 
+                    // RENDER THE ACTIVE TAILOR SKETCH BLUEPRINT NATIVE CANVAS (Dynamically updates with user's browsed/selected colorhex!)
+                    if (customizedResult.garmentType != null || studioModeTab == 0) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = if (userLanguage == "ar") "رسمة الموديل المبدئية (Initial Design Sketch)" else "Initial Tailoring Blueprint Sketch:",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // Drawn custom model instantly updates live when they try different shades on color scroll!
+                        BespokeSketchCanvas(result = customizedResult)
+                    }
+
+                    // ----------------------------------------------------
+                    // POST-GENERATION LIVE MATERIAL/COLOR SWAP BROWSER
+                    // ----------------------------------------------------
                     Spacer(modifier = Modifier.height(12.dp))
+                    Divider()
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Palette, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (userLanguage == "ar") "تعديل واختيار نوع الخامة واللون للرسمة:" else "Personalize Blueprint Fabric & Hue Selection:",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Text(
+                        text = if (userLanguage == "ar") "تصفح الخامات أدناه لتعديل مظهر الموديل الجمالي وتحديث تكلفة التفصيل الإجمالية مباشرة."
+                               else "Browse our premier mills catalog below to re-color the schematic canvas and instantly recalculate prices.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    MaterialSelectionComponent(
+                        userLanguage = userLanguage,
+                        selectedMaterial = selectedMaterial,
+                        onMaterialSelected = { selectedMaterial = it },
+                        selectedColor = selectedColor,
+                        onColorSelected = { selectedColor = it }
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
                     Text("Recommended Fabrics Detail:", fontWeight = FontWeight.Bold)
-                    Text(res.suggestedFabrics.joinToString(", "))
+                    Text(customizedResult.suggestedFabrics.joinToString(", ") + " (${if (userLanguage == "ar") "قماش نخب أول" else "Custom Selected Type"})")
 
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Master Crafting Directives:", fontWeight = FontWeight.Bold)
-                    res.tailoringSecrets.forEach { spec ->
+                    customizedResult.tailoringSecrets.forEach { spec ->
                         Text("• $spec", fontSize = 13.sp)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("Price Suggestion: ${res.estimatedPrice.toInt()} EGP", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = if (userLanguage == "ar") "حساب التكلفة الإجمالية والوزن المخصص:" else "Interactive Tailoring Estimate Breakdown:",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "• " + if (userLanguage == "ar") "الخامة المحددة: ${selectedMaterial.nameEn} (${selectedMaterial.priceEgp} ج.م للمتر) = ${selectedMaterial.priceEgp * 3} ج.م"
+                                       else "Custom Swatch: ${selectedMaterial.nameEn} (${selectedMaterial.priceEgp} EGP/m) = ${selectedMaterial.priceEgp * 3} EGP",
+                                fontSize = 11.sp
+                            )
+                            Text(
+                                text = "• " + if (userLanguage == "ar") "تكاليف أتعاب حياكة الأستاذ ماركو: ١٥٠٠ ج.م" else "Sartorial Tailoring Base Rate: 1500 EGP",
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Price Suggestion: ${customizedResult.estimatedPrice.toInt()} EGP",
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
                     Divider()
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("Detailed Stitching Method:", fontWeight = FontWeight.Bold)
-                    res.assemblySteps.forEach { step ->
+                    Text("Detailed Stitching Method / Steps:", fontWeight = FontWeight.Bold)
+                    customizedResult.assemblySteps.forEach { step ->
                         Text("• $step", fontSize = 13.sp)
                     }
                 }
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
             Row {
                 OutlinedButton(
                     onClick = { appViewModel.clearAIGeneratorResult() },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).testTag("ai_clear_design_button")
                 ) {
                     Text("Clear Design")
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Button(
                     onClick = {
-                        // Place order based on AI Result
+                        // Place order based on AI Result and user's chosen custom material & color
                         appViewModel.placeCustomOrder(
                             category = "AI Creation",
-                            templateName = res.title,
-                            colorHex = "2C3E50",
-                            fabricName = res.suggestedFabrics.firstOrNull() ?: "Egyptian Cotton",
-                            notes = "AI Specifications: ${res.description}. Steps: ${res.assemblySteps.joinToString()}",
+                            templateName = customizedResult.title,
+                            colorHex = selectedColor.hexValue.removePrefix("#"),
+                            fabricName = selectedMaterial.nameEn,
+                            notes = "AI Specifications: ${customizedResult.description}. Fabric: ${selectedMaterial.nameEn} @ ${selectedMaterial.threadInfoEn}. Steps: ${customizedResult.assemblySteps.joinToString()}",
                             sizeType = "M",
                             length = 72f,
                             width = 52f,
                             sleeve = 62f,
                             collar = 40f,
                             deliveryAddress = "5 El Maadi St, Cairo",
-                            deliveryNotes = "AI Design Direct Order",
+                            deliveryNotes = "AI Design Direct Order - Custom selected Material",
                             paymentMethod = "COD",
-                            price = res.estimatedPrice
+                            price = customizedResult.estimatedPrice
                         )
                         onSubmittedToTailor()
                     },
