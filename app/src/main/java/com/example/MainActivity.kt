@@ -39,6 +39,7 @@ import com.example.data.*
 import com.example.ui.AppViewModel
 import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -573,57 +574,13 @@ fun CustomerDashboard(
             }
         }
 
-        // Active Orders Carousel Tracker
+        // Active Orders Tracker with Progress Tracking & Live Status Updates
         if (activeOrders.isNotEmpty()) {
             item {
-                Text(
-                    "Active Tracking (تتبع طلبيتك الجارية)",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
+                CustomOrderTrackingPanel(
+                    appViewModel = appViewModel,
+                    onNavigate = onNavigate
                 )
-            }
-            items(activeOrders) { order ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onNavigate("orders") },
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = order.orderNumber,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Surface(
-                                color = getStatusColor(order.status),
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Text(
-                                    text = order.status,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    fontSize = 11.sp,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "${order.category} - ${order.templateName}",
-                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Status Progression Line
-                        ProgressStepsLine(status = order.status)
-                    }
-                }
             }
         }
 
@@ -844,6 +801,309 @@ fun ProgressStepsLine(status: String) {
                             else Color.LightGray
                         )
                 )
+            }
+        }
+    }
+}
+
+fun getCustomStageIndex(status: String): Int {
+    return when (status) {
+        "PENDING", "PROCESSING", "Processing" -> 0
+        "IN_PROGRESS", "TAILORING", "Tailoring", "READY" -> 1
+        "OUT_FOR_DELIVERY", "Out for Delivery" -> 2
+        "COMPLETED", "Completed" -> 3
+        else -> 0
+    }
+}
+
+@Composable
+fun CustomOrderProgressTracker(status: String, userLanguage: String) {
+    val stageIndex = getCustomStageIndex(status)
+    val stages = listOf(
+        Pair(
+            if (userLanguage == "ar") "تحت التجهيز" else "Processing",
+            if (userLanguage == "ar") "تجهيز الأقمشة والمقاسات" else "Fabric & prep work"
+        ),
+        Pair(
+            if (userLanguage == "ar") "الخياطة والتفصيل" else "Tailoring",
+            if (userLanguage == "ar") "القص والتركيب والتفصيل" else "Stitching & designing"
+        ),
+        Pair(
+            if (userLanguage == "ar") "خارج للتوصيل" else "Out for Delivery",
+            if (userLanguage == "ar") "الطلب مع مندوب الشحن" else "En route to doorstep"
+        )
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            stages.forEachIndexed { idx, stage ->
+                val isActiveOrDone = idx <= stageIndex
+                val isCurrent = idx == stageIndex
+                val circleColor = if (isCurrent) {
+                    MaterialTheme.colorScheme.primary
+                } else if (isActiveOrDone) {
+                    Color(0xFF2ECC71) // Nice Green
+                } else {
+                    Color.LightGray.copy(alpha = 0.6f)
+                }
+
+                val textColor = if (isActiveOrDone) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = circleColor,
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                val icon = when (idx) {
+                                    0 -> Icons.Default.Add
+                                    1 -> Icons.Default.Casino
+                                    else -> Icons.Default.LocationOn
+                                }
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = stage.first,
+                                    tint = if (isActiveOrDone) Color.White else Color.Gray,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = stage.first,
+                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = 11.sp,
+                        color = textColor,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = stage.second,
+                        fontSize = 8.sp,
+                        color = textColor.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 10.sp
+                    )
+                }
+
+                if (idx < stages.size - 1) {
+                    val lineColor = if (idx < stageIndex) Color(0xFF2ECC71) else Color.LightGray.copy(alpha = 0.5f)
+                    Box(
+                        modifier = Modifier
+                            .weight(0.5f)
+                            .height(3.dp)
+                            .background(lineColor)
+                            .align(Alignment.CenterVertically)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CustomOrderTrackingPanel(
+    appViewModel: AppViewModel,
+    onNavigate: (String) -> Unit
+) {
+    val orders by appViewModel.customerOrders.collectAsState()
+    val activeOrders = orders.filter { it.status != "COMPLETED" }
+    val userLanguage by appViewModel.userLanguage.collectAsState()
+
+    if (activeOrders.isEmpty()) {
+        return
+    }
+
+    var selectedOrderIndex by remember { mutableStateOf(0) }
+    if (selectedOrderIndex >= activeOrders.size) {
+        selectedOrderIndex = 0
+    }
+    
+    val selectedOrder = activeOrders.getOrNull(selectedOrderIndex)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+            .padding(16.dp)
+            .testTag("custom_order_tracking_panel")
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = if (userLanguage == "ar") "تتبع الطلبات المميزة" else "Bespoke Order Tracker",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = if (userLanguage == "ar") "مراحل التصنيع اليدوي والتسليم" else "Crafting & delivery phases",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Surface(
+                color = MaterialTheme.colorScheme.primary,
+                shape = CircleShape,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "${activeOrders.size}",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (activeOrders.size > 1) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+            ) {
+                activeOrders.forEachIndexed { index, order ->
+                    val isSel = selectedOrderIndex == index
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { selectedOrderIndex = index }
+                            .testTag("track_sel_tab_$index"),
+                        color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    ) {
+                        Text(
+                            text = order.orderNumber,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        if (selectedOrder != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${selectedOrder.category} • ${selectedOrder.templateName}",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Surface(
+                            color = getStatusColor(selectedOrder.status),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = selectedOrder.status,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Fabric: ${selectedOrder.fabricName} | Fit: ${selectedOrder.sizeType}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    CustomOrderProgressTracker(status = selectedOrder.status, userLanguage = userLanguage)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = if (userLanguage == "ar") "تحديث الحالة يدويًا للتجربة:" else "Interactive Simulation Updates:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val updateStages = listOf(
+                            Triple("PENDING", if (userLanguage == "ar") "التجهيز" else "Processing", Color(0xFF2C3E50)),
+                            Triple("IN_PROGRESS", if (userLanguage == "ar") "التفصيل" else "Tailoring", Color(0xFFE67E22)),
+                            Triple("OUT_FOR_DELIVERY", if (userLanguage == "ar") "شحن" else "Shipping", Color(0xFFF1C40F))
+                        )
+
+                        updateStages.forEach { (statusKey, labelText, btnCol) ->
+                            val isActiveState = selectedOrder.status == statusKey
+                            Button(
+                                onClick = {
+                                    appViewModel.updateOrderStatusByTailor(selectedOrder.id, statusKey)
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(32.dp)
+                                    .testTag("btn_track_set_$statusKey"),
+                                contentPadding = PaddingValues(0.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isActiveState) btnCol else btnCol.copy(alpha = 0.15f),
+                                    contentColor = if (isActiveState) Color.White else btnCol
+                                )
+                            ) {
+                                Text(
+                                    text = labelText,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1470,10 +1730,35 @@ fun AIFashionStudio(
 // ----------------------------------------------------
 @Composable
 fun VirtualTryOn(appViewModel: AppViewModel) {
+    var tryOnTargetMode by remember { mutableStateOf("MANNEQUIN") } // "MANNEQUIN", "CAMERA", "AVATAR"
+    var isCameraCaptured by remember { mutableStateOf(false) }
+    var selectedAvatarIndex by remember { mutableStateOf(0) } // 0 = Zain, 1 = Farida, 2 = Youssef
+    var isCameraFlashing by remember { mutableStateOf(false) }
+    var isFlashOn by remember { mutableStateOf(false) }
+    var countdownValue by remember { mutableStateOf(-1) } // countdown, -1 is idle
+    var hasTimer by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
     var genderIndex by remember { mutableStateOf("Male") } // "Male" or "Female" or "Curvy"
     var selectedGarmentCategory by remember { mutableStateOf("Shirt") } // "Shirt", "Dress", "Suit", "Jacket"
     var colorOverlayHex by remember { mutableStateOf("E67E22") } // Orange initial
     var overlayOpacity by remember { mutableStateOf(0.85f) }
+
+    fun triggerShutter() {
+        coroutineScope.launch {
+            if (hasTimer) {
+                countdownValue = 3
+                while (countdownValue > 0) {
+                    delay(1000)
+                    countdownValue--
+                }
+            }
+            isCameraFlashing = true
+            delay(150)
+            isCameraFlashing = false
+            isCameraCaptured = true
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1489,19 +1774,61 @@ fun VirtualTryOn(appViewModel: AppViewModel) {
         }
 
         Text(
-            "تجربة الملابس الافتراضية على مانيكان تفاعلي مع التحكم في الألوان والأحجام",
+            "تجربة الملابس الافتراضية على مانيكان تفاعلي مع كاميرا تجريبية أو اختيار موديل خاص",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
         )
 
         Divider()
 
+        // Mode select buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val modes = listOf(
+                "MANNEQUIN" to "Standard Silhouette",
+                "CAMERA" to "Camera Sandbox",
+                "AVATAR" to "Fashion Models"
+            )
+            modes.forEach { (mKey, mTitle) ->
+                val isSel = tryOnTargetMode == mKey
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            tryOnTargetMode = mKey
+                            if (mKey == "AVATAR") {
+                                genderIndex = when (selectedAvatarIndex) {
+                                    0 -> "Male"
+                                    1 -> "Female"
+                                    else -> "Curvy"
+                                }
+                            }
+                        }
+                        .testTag("mode_$mKey"),
+                    color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = mTitle,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+
         Row(modifier = Modifier.fillMaxWidth()) {
-            // Left pane: SVG Mannequin Render on Canvas
+            // Left pane: Interactive Visual Render on Canvas
             Card(
                 modifier = Modifier
                     .weight(1.2f)
-                    .height(300.dp),
+                    .height(320.dp),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Box(
@@ -1510,174 +1837,444 @@ fun VirtualTryOn(appViewModel: AppViewModel) {
                 ) {
                     val colorAccent = Color(android.graphics.Color.parseColor("#$colorOverlayHex"))
 
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val w = size.width
-                        val h = size.height
+                    if (tryOnTargetMode == "CAMERA" && !isCameraCaptured) {
+                        // Simulated scanning live camera preview background
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF1E212D))
+                        ) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val w = size.width
+                                val h = size.height
 
-                        // 1. Draw mannequin base body silhouette
-                        val bodyColor = Color(0xFFE5DDD5)
-                        // Head
-                        drawCircle(color = bodyColor, radius = 22.dp.toPx(), center = androidx.compose.ui.geometry.Offset(w / 2f, h * 0.15f))
-                        // Neck
-                        drawRect(color = bodyColor, size = androidx.compose.ui.geometry.Size(12.dp.toPx(), 20.dp.toPx()), topLeft = androidx.compose.ui.geometry.Offset(w / 2f - 6.dp.toPx(), h * 0.15f + 16.dp.toPx()))
+                                // Draw futuristic alignment guides
+                                val guideColor = Color(0x6600FF99)
+                                repeat(4) { i ->
+                                    val y = h * (i + 1) / 5f
+                                    drawLine(color = guideColor, start = androidx.compose.ui.geometry.Offset(0f, y), end = androidx.compose.ui.geometry.Offset(w, y), strokeWidth = 1.dp.toPx())
+                                    val x = w * (i + 1) / 5f
+                                    drawLine(color = guideColor, start = androidx.compose.ui.geometry.Offset(x, 0f), end = androidx.compose.ui.geometry.Offset(x, h), strokeWidth = 1.dp.toPx())
+                                }
 
-                        // Torso path depending on frame index
-                        val torsoPath = Path().apply {
-                            moveTo(w / 2f - 40.dp.toPx(), h * 0.25f)
-                            lineTo(w / 2f + 40.dp.toPx(), h * 0.25f)
-                            if (genderIndex == "Curvy") {
-                                lineTo(w / 2f + 48.dp.toPx(), h * 0.38f)
-                                lineTo(w / 2f + 30.dp.toPx(), h * 0.44f)
-                                lineTo(w / 2f + 42.dp.toPx(), h * 0.58f)
-                                lineTo(w / 2f - 42.dp.toPx(), h * 0.58f)
-                                lineTo(w / 2f - 30.dp.toPx(), h * 0.44f)
-                                lineTo(w / 2f - 48.dp.toPx(), h * 0.38f)
-                            } else {
-                                lineTo(w / 2f + 32.dp.toPx(), h * 0.45f)
-                                lineTo(w / 2f + 36.dp.toPx(), h * 0.58f)
-                                lineTo(w / 2f - 36.dp.toPx(), h * 0.58f)
-                                lineTo(w / 2f - 32.dp.toPx(), h * 0.45f)
-                            }
-                            close()
-                        }
-                        drawPath(path = torsoPath, color = bodyColor)
+                                // Neon target contour lines
+                                drawCircle(
+                                    color = Color(0xFF00FF99),
+                                    radius = 24.dp.toPx(),
+                                    center = androidx.compose.ui.geometry.Offset(w / 2f, h * 0.16f),
+                                    style = Stroke(width = 2.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5f, 5f)))
+                                )
 
-                        // Arms & Legs outline
-                        // Left arm
-                        val armPathLeft = Path().apply {
-                            moveTo(w / 2f - 40.dp.toPx(), h * 0.25f)
-                            lineTo(w / 2f - 52.dp.toPx(), h * 0.45f)
-                            lineTo(w / 2f - 50.dp.toPx(), h * 0.55f)
-                        }
-                        drawPath(path = armPathLeft, color = bodyColor, style = Stroke(width = 12.dp.toPx()))
-
-                        // Right arm
-                        val armPathRight = Path().apply {
-                            moveTo(w / 2f + 40.dp.toPx(), h * 0.25f)
-                            lineTo(w / 2f + 52.dp.toPx(), h * 0.45f)
-                            lineTo(w / 2f + 50.dp.toPx(), h * 0.55f)
-                        }
-                        drawPath(path = armPathRight, color = bodyColor, style = Stroke(width = 12.dp.toPx()))
-
-                        // Left Leg
-                        drawRect(color = bodyColor, size = androidx.compose.ui.geometry.Size(14.dp.toPx(), h * 0.35f), topLeft = androidx.compose.ui.geometry.Offset(w / 2f - 26.dp.toPx(), h * 0.58f))
-                        // Right Leg
-                        drawRect(color = bodyColor, size = androidx.compose.ui.geometry.Size(14.dp.toPx(), h * 0.35f), topLeft = androidx.compose.ui.geometry.Offset(w / 2f + 12.dp.toPx(), h * 0.58f))
-
-
-                        // 2. Overlay garment drawing with chosen color and opacity
-                        val clothColor = colorAccent.copy(alpha = overlayOpacity)
-                        when (selectedGarmentCategory) {
-                            "Shirt" -> {
-                                val shirtPath = Path().apply {
-                                    moveTo(w / 2f - 42.dp.toPx(), h * 0.24f)
-                                    lineTo(w / 2f + 42.dp.toPx(), h * 0.24f)
-                                    lineTo(w / 2f + 36.dp.toPx(), h * 0.48f)
-                                    lineTo(w / 2f - 36.dp.toPx(), h * 0.48f)
+                                val guideTorso = Path().apply {
+                                    moveTo(w / 2f - 38.dp.toPx(), h * 0.28f)
+                                    lineTo(w / 2f + 38.dp.toPx(), h * 0.28f)
+                                    lineTo(w / 2f + 30.dp.toPx(), h * 0.58f)
+                                    lineTo(w / 2f - 30.dp.toPx(), h * 0.58f)
                                     close()
                                 }
-                                drawPath(path = shirtPath, color = clothColor)
+                                drawPath(path = guideTorso, color = Color(0xFF00FF99).copy(alpha = 0.5f), style = Stroke(width = 2.dp.toPx()))
+                            }
 
-                                // sleeves overlay details
-                                val armOverLeft = Path().apply {
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                if (countdownValue > 0) {
+                                    Text(
+                                        text = "$countdownValue",
+                                        style = MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.Black),
+                                        color = Color(0xFF00FF99)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Taking snap...", color = Color.White, fontSize = 11.sp)
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Face,
+                                        contentDescription = "Lens Active",
+                                        tint = Color(0xFF00FF99),
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text("LIVE CAMERA VIEW", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00FF99), textAlign = TextAlign.Center)
+                                    Text("Align with standard contour", fontSize = 9.sp, color = Color.White.copy(alpha = 0.6f))
+                                }
+                            }
+
+                            // Simulation Active pill on Top Left
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(10.dp)
+                                    .background(Color.Red.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(modifier = Modifier.size(6.dp).background(Color.White, CircleShape))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("REC", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    } else {
+                        // Drawing base Canvas: Mannequin, Avatar, or Captured Camera snapshot
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    if (tryOnTargetMode == "CAMERA") {
+                                        Brush.verticalGradient(listOf(Color(0xFF242B35), Color(0xFF13171D)))
+                                    } else {
+                                        Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surfaceVariant))
+                                    }
+                                )
+                        ) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val w = size.width
+                                val h = size.height
+
+                                // 1. Determine body skin/silhouette color
+                                val bodyColor = when (tryOnTargetMode) {
+                                    "AVATAR" -> when (selectedAvatarIndex) {
+                                        0 -> Color(0xFFE6C3A7) // Zain warm skin
+                                        1 -> Color(0xFFD3A992) // Farida olive skin
+                                        else -> Color(0xFFC49A76) // Youssef rich gold skin
+                                    }
+                                    "CAMERA" -> Color(0xFF76E1CA).copy(alpha = 0.5f) // Glowing cyan matrix
+                                    else -> Color(0xFFE5DDD5) // default Standard base
+                                }
+
+                                // 2. Draw base body structure
+                                // Head
+                                drawCircle(
+                                    color = bodyColor,
+                                    radius = if (tryOnTargetMode == "CAMERA") 24.dp.toPx() else 21.dp.toPx(),
+                                    center = androidx.compose.ui.geometry.Offset(w / 2f, h * 0.16f)
+                                )
+                                // Neck
+                                drawRect(
+                                    color = bodyColor,
+                                    size = androidx.compose.ui.geometry.Size(12.dp.toPx(), 20.dp.toPx()),
+                                    topLeft = androidx.compose.ui.geometry.Offset(w / 2f - 6.dp.toPx(), h * 0.16f + 16.dp.toPx())
+                                )
+
+                                // Torso path depending on frame index
+                                val torsoPath = Path().apply {
                                     moveTo(w / 2f - 40.dp.toPx(), h * 0.25f)
-                                    lineTo(w / 2f - 46.dp.toPx(), h * 0.34f)
-                                }
-                                drawPath(path = armOverLeft, color = clothColor, style = Stroke(width = 14.dp.toPx()))
-                                val armOverRight = Path().apply {
-                                    moveTo(w / 2f + 40.dp.toPx(), h * 0.25f)
-                                    lineTo(w / 2f + 46.dp.toPx(), h * 0.34f)
-                                }
-                                drawPath(path = armOverRight, color = clothColor, style = Stroke(width = 14.dp.toPx()))
-                            }
-                            "Dress" -> {
-                                val dressPath = Path().apply {
-                                    moveTo(w / 2f - 32.dp.toPx(), h * 0.25f)
-                                    lineTo(w / 2f + 32.dp.toPx(), h * 0.25f)
-                                    lineTo(w / 2f + 55.dp.toPx(), h * 0.85f)
-                                    lineTo(w / 2f - 55.dp.toPx(), h * 0.85f)
+                                    lineTo(w / 2f + 40.dp.toPx(), h * 0.25f)
+                                    if (genderIndex == "Curvy") {
+                                        lineTo(w / 2f + 48.dp.toPx(), h * 0.38f)
+                                        lineTo(w / 2f + 30.dp.toPx(), h * 0.44f)
+                                        lineTo(w / 2f + 42.dp.toPx(), h * 0.58f)
+                                        lineTo(w / 2f - 42.dp.toPx(), h * 0.58f)
+                                        lineTo(w / 2f - 30.dp.toPx(), h * 0.44f)
+                                        lineTo(w / 2f - 48.dp.toPx(), h * 0.38f)
+                                    } else {
+                                        lineTo(w / 2f + 32.dp.toPx(), h * 0.45f)
+                                        lineTo(w / 2f + 36.dp.toPx(), h * 0.58f)
+                                        lineTo(w / 2f - 36.dp.toPx(), h * 0.58f)
+                                        lineTo(w / 2f - 32.dp.toPx(), h * 0.45f)
+                                    }
                                     close()
                                 }
-                                drawPath(path = dressPath, color = clothColor)
-                            }
-                            "Suit" -> {
-                                // Double breasted jacket overlay
-                                val jacketPath = Path().apply {
-                                    moveTo(w / 2f - 44.dp.toPx(), h * 0.24f)
-                                    lineTo(w / 2f + 44.dp.toPx(), h * 0.24f)
-                                    lineTo(w / 2f + 38.dp.toPx(), h * 0.54f)
-                                    lineTo(w / 2f - 38.dp.toPx(), h * 0.54f)
-                                    close()
-                                }
-                                drawPath(path = jacketPath, color = clothColor)
+                                drawPath(path = torsoPath, color = bodyColor)
 
-                                // Matching suit pants overlay
-                                val pantsPath = Path().apply {
-                                    moveTo(w / 2f - 28.dp.toPx(), h * 0.54f)
-                                    lineTo(w / 2f + 28.dp.toPx(), h * 0.54f)
-                                    lineTo(w / 2f + 24.dp.toPx(), h * 0.88f)
-                                    lineTo(w / 2f + 10.dp.toPx(), h * 0.88f)
-                                    lineTo(w / 2f, h * 0.58f) // crop division
-                                    lineTo(w / 2f - 10.dp.toPx(), h * 0.88f)
-                                    lineTo(w / 2f - 24.dp.toPx(), h * 0.88f)
-                                    close()
+                                // Arms outline
+                                val armPathLeft = Path().apply {
+                                    moveTo(w / 2f - 40.dp.toPx(), h * 0.25f)
+                                    lineTo(w / 2f - 52.dp.toPx(), h * 0.45f)
+                                    lineTo(w / 2f - 50.dp.toPx(), h * 0.55f)
                                 }
-                                drawPath(path = pantsPath, color = clothColor)
+                                drawPath(path = armPathLeft, color = bodyColor, style = Stroke(width = 11.dp.toPx()))
+
+                                val armPathRight = Path().apply {
+                                    moveTo(w / 2f + 40.dp.toPx(), h * 0.25f)
+                                    lineTo(w / 2f + 52.dp.toPx(), h * 0.45f)
+                                    lineTo(w / 2f + 50.dp.toPx(), h * 0.55f)
+                                }
+                                drawPath(path = armPathRight, color = bodyColor, style = Stroke(width = 11.dp.toPx()))
+
+                                // Legs outline
+                                drawRect(
+                                    color = bodyColor,
+                                    size = androidx.compose.ui.geometry.Size(14.dp.toPx(), h * 0.35f),
+                                    topLeft = androidx.compose.ui.geometry.Offset(w / 2f - 26.dp.toPx(), h * 0.58f)
+                                )
+                                drawRect(
+                                    color = bodyColor,
+                                    size = androidx.compose.ui.geometry.Size(14.dp.toPx(), h * 0.35f),
+                                    topLeft = androidx.compose.ui.geometry.Offset(w / 2f + 12.dp.toPx(), h * 0.58f)
+                                )
+
+                                // 3. Draw Character/Avatar Details (Distinctive head line art/accessories)
+                                if (tryOnTargetMode == "AVATAR") {
+                                    when (selectedAvatarIndex) {
+                                        0 -> { // Zain
+                                            // Black trendy sleek hair top
+                                            drawArc(
+                                                color = Color(0xFF1E272C),
+                                                startAngle = 180f,
+                                                sweepAngle = 180f,
+                                                useCenter = true,
+                                                size = androidx.compose.ui.geometry.Size(42.dp.toPx(), 20.dp.toPx()),
+                                                topLeft = androidx.compose.ui.geometry.Offset(w / 2f - 21.dp.toPx(), h * 0.16f - 22.dp.toPx())
+                                            )
+                                            // Sleek glasses
+                                            drawRect(
+                                                color = Color(0xFF2C3E50),
+                                                size = androidx.compose.ui.geometry.Size(30.dp.toPx(), 7.dp.toPx()),
+                                                topLeft = androidx.compose.ui.geometry.Offset(w / 2f - 15.dp.toPx(), h * 0.16f - 3.dp.toPx())
+                                            )
+                                        }
+                                        1 -> { // Farida
+                                            // Flowing hair base
+                                            drawCircle(
+                                                color = Color(0xFF4A2F1D),
+                                                radius = 23.dp.toPx(),
+                                                center = androidx.compose.ui.geometry.Offset(w / 2f, h * 0.16f - 2.dp.toPx())
+                                            )
+                                            // Purple hair scarf / headband
+                                            drawCircle(
+                                                color = Color(0xFF8E44AD),
+                                                radius = 15.dp.toPx(),
+                                                center = androidx.compose.ui.geometry.Offset(w / 2f, h * 0.16f + 16.dp.toPx()),
+                                                style = Stroke(width = 4.dp.toPx())
+                                            )
+                                        }
+                                        else -> { // Youssef
+                                            // Red sports cap style
+                                            val sportsCap = Path().apply {
+                                                moveTo(w / 2f - 20.dp.toPx(), h * 0.16f - 11.dp.toPx())
+                                                lineTo(w / 2f + 20.dp.toPx(), h * 0.16f - 11.dp.toPx())
+                                                lineTo(w / 2f + 30.dp.toPx(), h * 0.16f - 20.dp.toPx())
+                                                lineTo(w / 2f - 10.dp.toPx(), h * 0.16f - 20.dp.toPx())
+                                                close()
+                                            }
+                                            drawPath(path = sportsCap, color = Color(0xFFC0392B))
+                                        }
+                                    }
+                                } else if (tryOnTargetMode == "CAMERA") {
+                                    // Simulated digitized telemetry brackets around face
+                                    drawCircle(
+                                        color = Color(0xFF00FF99),
+                                        radius = 29.dp.toPx(),
+                                        center = androidx.compose.ui.geometry.Offset(w / 2f, h * 0.16f),
+                                        style = Stroke(width = 1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
+                                    )
+                                }
+
+                                // 4. Overlay chosen garment
+                                val clothColor = colorAccent.copy(alpha = overlayOpacity)
+                                when (selectedGarmentCategory) {
+                                    "Shirt" -> {
+                                        val shirtPath = Path().apply {
+                                            moveTo(w / 2f - 42.dp.toPx(), h * 0.24f)
+                                            lineTo(w / 2f + 42.dp.toPx(), h * 0.24f)
+                                            lineTo(w / 2f + 36.dp.toPx(), h * 0.48f)
+                                            lineTo(w / 2f - 36.dp.toPx(), h * 0.48f)
+                                            close()
+                                        }
+                                        drawPath(path = shirtPath, color = clothColor)
+
+                                        val armOverLeft = Path().apply {
+                                            moveTo(w / 2f - 40.dp.toPx(), h * 0.25f)
+                                            lineTo(w / 2f - 46.dp.toPx(), h * 0.34f)
+                                        }
+                                        drawPath(path = armOverLeft, color = clothColor, style = Stroke(width = 14.dp.toPx()))
+                                        val armOverRight = Path().apply {
+                                            moveTo(w / 2f + 40.dp.toPx(), h * 0.25f)
+                                            lineTo(w / 2f + 46.dp.toPx(), h * 0.34f)
+                                        }
+                                        drawPath(path = armOverRight, color = clothColor, style = Stroke(width = 14.dp.toPx()))
+                                    }
+                                    "Dress" -> {
+                                        val dressPath = Path().apply {
+                                            moveTo(w / 2f - 32.dp.toPx(), h * 0.25f)
+                                            lineTo(w / 2f + 32.dp.toPx(), h * 0.25f)
+                                            lineTo(w / 2f + 55.dp.toPx(), h * 0.85f)
+                                            lineTo(w / 2f - 55.dp.toPx(), h * 0.85f)
+                                            close()
+                                        }
+                                        drawPath(path = dressPath, color = clothColor)
+                                    }
+                                    "Suit" -> {
+                                        val jacketPath = Path().apply {
+                                            moveTo(w / 2f - 44.dp.toPx(), h * 0.24f)
+                                            lineTo(w / 2f + 44.dp.toPx(), h * 0.24f)
+                                            lineTo(w / 2f + 38.dp.toPx(), h * 0.54f)
+                                            lineTo(w / 2f - 38.dp.toPx(), h * 0.54f)
+                                            close()
+                                        }
+                                        drawPath(path = jacketPath, color = clothColor)
+
+                                        val pantsPath = Path().apply {
+                                            moveTo(w / 2f - 28.dp.toPx(), h * 0.54f)
+                                            lineTo(w / 2f + 28.dp.toPx(), h * 0.54f)
+                                            lineTo(w / 2f + 24.dp.toPx(), h * 0.88f)
+                                            lineTo(w / 2f + 10.dp.toPx(), h * 0.88f)
+                                            lineTo(w / 2f, h * 0.58f)
+                                            lineTo(w / 2f - 10.dp.toPx(), h * 0.88f)
+                                            lineTo(w / 2f - 24.dp.toPx(), h * 0.88f)
+                                            close()
+                                        }
+                                        drawPath(path = pantsPath, color = clothColor)
+                                    }
+                                    "Jacket" -> {
+                                        val jacketPath = Path().apply {
+                                            moveTo(w / 2f - 46.dp.toPx(), h * 0.23f)
+                                            lineTo(w / 2f + 46.dp.toPx(), h * 0.23f)
+                                            lineTo(w / 2f + 40.dp.toPx(), h * 0.62f)
+                                            lineTo(w / 2f - 40.dp.toPx(), h * 0.62f)
+                                            close()
+                                        }
+                                        drawPath(path = jacketPath, color = clothColor)
+                                    }
+                                }
                             }
-                            "Jacket" -> {
-                                // Heavy trench overlay
-                                val jacketPath = Path().apply {
-                                    moveTo(w / 2f - 46.dp.toPx(), h * 0.23f)
-                                    lineTo(w / 2f + 46.dp.toPx(), h * 0.23f)
-                                    lineTo(w / 2f + 40.dp.toPx(), h * 0.62f)
-                                    lineTo(w / 2f - 40.dp.toPx(), h * 0.62f)
-                                    close()
+
+                            // Subtitle Lock Overlay info banner
+                            if (tryOnTargetMode == "CAMERA" && isCameraCaptured) {
+                                Surface(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .padding(6.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.Black.copy(alpha = 0.82f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = Color(0xFF00FF99), modifier = Modifier.size(13.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Sizing Snapshot Locked", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                        Text(
+                                            text = "RETAKE",
+                                            modifier = Modifier.clickable { isCameraCaptured = false }.testTag("camera_retake"),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
-                                drawPath(path = jacketPath, color = clothColor)
                             }
                         }
+                    }
+
+                    // Camera shutter flash animation frame
+                    if (isCameraFlashing) {
+                        Box(modifier = Modifier.fillMaxSize().background(Color.White))
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Right Pane: Sizing parameters controls
+            // Right Pane: Context-aware parameters controls (Standard, Camera snapshots details, or Avatar models selector)
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Body Structure", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                val structureTypes = listOf("Male", "Female", "Curvy")
-                structureTypes.forEach { s ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { genderIndex = s }
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                if (tryOnTargetMode == "MANNEQUIN") {
+                    Text("Body Structure", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    val structureTypes = listOf("Male", "Female", "Curvy")
+                    structureTypes.forEach { s ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { genderIndex = s }
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = genderIndex == s, onClick = { genderIndex = s })
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(s, fontSize = 12.sp)
+                        }
+                    }
+                } else if (tryOnTargetMode == "AVATAR") {
+                    Text("Choose Model Profile", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    val avatarsList = listOf(
+                        Triple("Zain", "Male", "Modern Egypt Chic"),
+                        Triple("Farida", "Female", "Alexandria Glamour"),
+                        Triple("Youssef", "Curvy", "Heritage Fit")
+                    )
+                    avatarsList.forEachIndexed { index, (name, gender, sub) ->
+                        val isSelected = selectedAvatarIndex == index
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedAvatarIndex = index
+                                    genderIndex = gender
+                                }
+                                .testTag("btn_avatar_$index"),
+                            border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            colors = CardDefaults.cardColors(containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface)
+                        ) {
+                            Column(modifier = Modifier.padding(6.dp)) {
+                                Text(name, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("$gender • $sub", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            }
+                        }
+                    }
+                } else {
+                    // CAMERA Sandbox settings
+                    Text("Camera Calibration", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Simulate realistic camera device framing for try-on.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                     ) {
-                        RadioButton(selected = genderIndex == s, onClick = { genderIndex = s })
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(s, fontSize = 13.sp)
+                        Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = hasTimer, onClick = { hasTimer = !hasTimer })
+                                Text("3s Delay Timer", fontSize = 11.sp, modifier = Modifier.clickable { hasTimer = !hasTimer })
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = isFlashOn, onClick = { isFlashOn = !isFlashOn })
+                                Text("Camera Flash Bulb", fontSize = 11.sp, modifier = Modifier.clickable { isFlashOn = !isFlashOn })
+                            }
+                        }
+                    }
+
+                    if (!isCameraCaptured) {
+                        Button(
+                            onClick = { triggerShutter() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(38.dp)
+                                .testTag("btn_shutter_capture"),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("Capture", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Text("Snapshot Ready!", color = Color(0xFF2ECC71), fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
 
-                Text("Clothing Template", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text("Clothing Template", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 val itemsList = listOf("Shirt" to "قميص", "Dress" to "فستان", "Suit" to "بدلة", "Jacket" to "جاكيت")
                 itemsList.forEach { (key, arabic) ->
                     val selected = selectedGarmentCategory == key
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(34.dp)
+                            .height(30.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .clickable { selectedGarmentCategory = key }
                             .testTag("try_$key"),
                         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Row(modifier = Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "$key ($arabic)", fontSize = 12.sp, color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+                            Text(text = "$key ($arabic)", fontSize = 11.sp, color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }
