@@ -309,6 +309,10 @@ fun MainAppScreen(appViewModel: AppViewModel = viewModel()) {
                     )
                     "map" -> InteractiveWorkshopMap(appViewModel = appViewModel)
                     "profile" -> UserProfileScreen(appViewModel = appViewModel)
+                    "supplier_inventory" -> SupplierInventoryDashboard(
+                        appViewModel = appViewModel,
+                        onBack = { currentScreen = "dashboard" }
+                    )
                 }
             }
 
@@ -676,6 +680,24 @@ fun CustomerDashboard(
                         .testTag("action_sizing"),
                     onClick = { onNavigate("profile") }
                 )
+            }
+        }
+
+        item {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                FeatureButton(
+                    title = if (userLanguage == "ar") "مخزون واستعلام الموردين" else "Supplier Inventory",
+                    sub = if (userLanguage == "ar") "تصفح الأقمشة والتقييمات ومدة التوصيل" else "View stocks, ratings & delivery",
+                    icon = Icons.Default.Layers,
+                    color = Color(0xFF3498DB),
+                    cardStyle = "outline",
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("action_supplier_inventory"),
+                    onClick = { onNavigate("supplier_inventory") }
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.weight(1f))
             }
         }
     }
@@ -3887,6 +3909,717 @@ fun UserProfileScreen(appViewModel: AppViewModel) {
                 }
             }
         }
+    }
+}
+
+// ----------------------------------------------------
+// SUPPLIER FABRIC INVENTORY & STOCK ESTIMATOR DASHBOARD
+// ----------------------------------------------------
+fun parseColorString(colorString: String): Color {
+    val hexPattern = "#([A-Fa-f0-9]{6})".toRegex()
+    val matchResult = hexPattern.find(colorString)
+    if (matchResult != null) {
+        return try {
+            Color(android.graphics.Color.parseColor(matchResult.value))
+        } catch (e: Exception) {
+            Color(0xFF2C3E50)
+        }
+    }
+    val lower = colorString.lowercase()
+    return when {
+        "white" in lower -> Color.White
+        "navy" in lower -> Color(0xFF1B2A47)
+        "blue" in lower || "cobalt" in lower || "indigo" in lower -> Color(0xFF1B4F72)
+        "beige" in lower || "sand" in lower -> Color(0xFFE2C6A3)
+        "crimson" in lower || "red" in lower || "burgundy" in lower -> Color(0xFF801515)
+        "grey" in lower || "gray" in lower || "charcoal" in lower -> Color(0xFF4A4A4A)
+        "green" in lower || "emerald" in lower -> Color(0xFF196F3D)
+        "black" in lower || "obsidian" in lower || "coal" in lower -> Color(0xFF1C1C1C)
+        "gold" in lower || "yellow" in lower -> Color(0xFFD4AF37)
+        "purple" in lower || "plum" in lower -> Color(0xFF5B2C6F)
+        "ochre" in lower || "orange" in lower || "rust" in lower -> Color(0xFFBA5A00)
+        else -> Color(0xFF34495E)
+    }
+}
+
+@Composable
+fun FabricVisualSwatch(
+    colorString: String,
+    modifier: Modifier = Modifier
+) {
+    val fabricColor = remember(colorString) { parseColorString(colorString) }
+    Box(
+        modifier = modifier
+            .background(fabricColor)
+            .border(1.dp, Color.Gray.copy(alpha = 0.2f))
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val strokeWidthVal = 1.5.dp.toPx()
+            val primaryWeaveColor = if (fabricColor == Color.White) {
+                Color.LightGray.copy(alpha = 0.25f)
+            } else {
+                Color.White.copy(alpha = 0.12f)
+            }
+            val secondaryWeaveColor = if (fabricColor == Color.White) {
+                Color.Gray.copy(alpha = 0.15f)
+            } else {
+                Color.Black.copy(alpha = 0.12f)
+            }
+
+            // Diagonal lines top-left to bottom-right
+            for (offset in -400..1200 step 20) {
+                drawLine(
+                    color = primaryWeaveColor,
+                    start = Offset(offset.toFloat(), 0f),
+                    end = Offset((offset + size.height).toFloat(), size.height),
+                    strokeWidth = strokeWidthVal
+                )
+            }
+
+            // Cross-stitching lines: top-right to bottom-left
+            for (offset in -400..1200 step 20) {
+                drawLine(
+                    color = secondaryWeaveColor,
+                    start = Offset((size.width - offset).toFloat(), 0f),
+                    end = Offset((size.width - offset - size.height).toFloat(), size.height),
+                    strokeWidth = strokeWidthVal
+                )
+            }
+        }
+    }
+}
+
+fun getFabricRating(fabricId: Int, name: String): Double {
+    return when(name) {
+        "Egyptian Cotton Premium" -> 4.9
+        "Italian Premium Wool" -> 4.8
+        "Belgian Pure Linen" -> 4.7
+        "Mulberry Silk" -> 4.9
+        "Heavy Indigo Denim" -> 4.5
+        else -> {
+            val base = 4.5 + (fabricId % 5) * 0.1
+            if (base > 5.0) 5.0 else base
+        }
+    }
+}
+
+fun getFabricReviewCount(fabricId: Int, name: String): Int {
+    return when(name) {
+        "Egyptian Cotton Premium" -> 142
+        "Italian Premium Wool" -> 95
+        "Belgian Pure Linen" -> 118
+        "Mulberry Silk" -> 76
+        "Heavy Indigo Denim" -> 64
+        else -> 15 + (fabricId * 13) % 80
+    }
+}
+
+fun getFabricGrade(name: String): String {
+    return when(name) {
+        "Egyptian Cotton Premium" -> "A+ Extra Long Staple"
+        "Italian Premium Wool" -> "Grade A Super 140s"
+        "Belgian Pure Linen" -> "Class-1 Certified Flax"
+        "Mulberry Silk" -> "100% Organic Mulberry"
+        "Heavy Indigo Denim" -> "Raw Japanese Selvage"
+        else -> "Premium Commercial Grade"
+    }
+}
+
+fun getFabricDeliveryDays(name: String): String {
+    return when(name) {
+        "Egyptian Cotton Premium" -> "1-2 Days (Cairo/Giza Express)"
+        "Italian Premium Wool" -> "2-3 Days (Express Courier)"
+        "Belgian Pure Linen" -> "2-4 Days (Standard Insured)"
+        "Mulberry Silk" -> "1-2 Days (Next-day Priority)"
+        "Heavy Indigo Denim" -> "3-5 Days (Standard Ground)"
+        else -> "2-3 Business Days"
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun SupplierInventoryDashboard(
+    appViewModel: AppViewModel,
+    onBack: () -> Unit
+) {
+    val fabrics by appViewModel.fabricsList.collectAsState()
+    val userLanguage by appViewModel.userLanguage.collectAsState()
+
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("All") }
+    var selectedStockFilter by remember { mutableStateOf("All") } // "All", "In-Stock", "Low < 250m"
+    var selectedSortOrder by remember { mutableStateOf("Default") } // "Default", "Price: Low to High", "Price: High to Low", "Ratings"
+
+    var selectedFabricForDetail by remember { mutableStateOf<FabricEntity?>(null) }
+    var inquiryMeters by remember { mutableStateOf(3f) }
+    var inquiryNotes by remember { mutableStateOf("") }
+    var showSuccessInquiryAlert by remember { mutableStateOf(false) }
+
+    val filteredFabrics = remember(fabrics, searchQuery, selectedCategory, selectedStockFilter, selectedSortOrder) {
+        var list = fabrics.filter { fab ->
+            val matchesSearch = fab.name.contains(searchQuery, ignoreCase = true) || fab.color.contains(searchQuery, ignoreCase = true)
+            val matchesCategory = selectedCategory == "All" || fab.category.equals(selectedCategory, ignoreCase = true)
+            val matchesStock = when (selectedStockFilter) {
+                "In-Stock" -> fab.stockMs > 0
+                "Low < 250m" -> fab.stockMs in 1..249
+                else -> true
+            }
+            matchesSearch && matchesCategory && matchesStock
+        }
+        
+        list = when (selectedSortOrder) {
+            "Price: Low to High" -> list.sortedBy { it.pricePerMeter }
+            "Price: High to Low" -> list.sortedByDescending { it.pricePerMeter }
+            "Ratings" -> list.sortedByDescending { getFabricRating(it.id, it.name) }
+            else -> list
+        }
+        list
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // Master Title Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.testTag("back_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text(
+                    text = if (userLanguage == "ar") "مخزون واستعلام الموردين" else "Supplier Fabrics Stock",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = if (userLanguage == "ar") "تتبع وتفحص خامات ومقاسات الأقمشة المعتمدة" else "Browse verified mills inventory & reserve custom swatches",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // Search Bar Section
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text(if (userLanguage == "ar") "ابحث عن قماش، لون، مواصفة هامة..." else "Search fabrics, hues, loom category...") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .testTag("search_fabric"),
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear")
+                    }
+                }
+            },
+            shape = RoundedCornerShape(14.dp),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+            )
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Horizontal Category Tabs
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val categories = listOf("All", "Cotton", "Wool", "Linen", "Silk", "Denim")
+            categories.forEach { cat ->
+                val isSelected = selectedCategory == cat
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { selectedCategory = cat },
+                    label = { Text(cat) },
+                    modifier = Modifier.testTag("chip_cat_$cat"),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Extra Sort & Filter Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Sort chip toggle
+            val sortOptions = listOf("Default", "Price: Low to High", "Price: High to Low", "Ratings")
+            sortOptions.forEach { opt ->
+                val isSelected = selectedSortOrder == opt
+                SuggestionChip(
+                    onClick = { selectedSortOrder = opt },
+                    label = { Text(opt) },
+                    border = BorderStroke(
+                        width = if (isSelected) 2.dp else 1.dp,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                    ),
+                    modifier = Modifier.testTag("sort_chip_$opt")
+                )
+            }
+
+            Divider(modifier = Modifier.width(1.dp).height(24.dp))
+
+            // Stock Toggle Chip
+            val stockOptions = listOf("All", "In-Stock", "Low < 250m")
+            stockOptions.forEach { stockOpt ->
+                val isSelected = selectedStockFilter == stockOpt
+                SuggestionChip(
+                    onClick = { selectedStockFilter = stockOpt },
+                    label = { Text(stockOpt) },
+                    border = BorderStroke(
+                        width = if (isSelected) 2.dp else 1.dp,
+                        color = if (isSelected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outlineVariant
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Fabric Listing Catalog
+        if (filteredFabrics.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Layers, contentDescription = "Empty", modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (userLanguage == "ar") "عذراً.. لم نجد أقمشة مطابقة لبحثك" else "No fabrics found in current category matching parameters",
+                        color = MaterialTheme.colorScheme.outline,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filteredFabrics) { fabric ->
+                    val rating = getFabricRating(fabric.id, fabric.name)
+                    val reviewCount = getFabricReviewCount(fabric.id, fabric.name)
+                    val gradeText = getFabricGrade(fabric.name)
+                    val deliveryText = getFabricDeliveryDays(fabric.name)
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedFabricForDetail = fabric
+                                inquiryMeters = 3f
+                                inquiryNotes = ""
+                                showSuccessInquiryAlert = false
+                            }
+                            .testTag("fabric_item_${fabric.id}"),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // High-Craft visual texture swatch
+                            FabricVisualSwatch(
+                                colorString = fabric.color,
+                                modifier = Modifier
+                                    .size(90.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                            )
+
+                            Spacer(modifier = Modifier.width(14.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = fabric.name,
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${fabric.category} • $gradeText",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Ratings and Reviews Bar
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = "Rating Star",
+                                        tint = Color(0xFFF1C40F),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "$rating",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "($reviewCount reviews)",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // Stock Gauge Progress Indicator
+                                val stockRatio = (fabric.stockMs / 500f).coerceIn(0f, 1f)
+                                val stockColor = when {
+                                    fabric.stockMs == 0 -> Color.Red
+                                    fabric.stockMs < 250 -> Color(0xFFE67E22) // Orange
+                                    else -> Color(0xFF27AE60) // Green
+                                }
+                                val stockLabel = when {
+                                    fabric.stockMs == 0 -> if (userLanguage == "ar") "نفذ من المخزون ❌" else "Out of Stock ❌"
+                                    fabric.stockMs < 250 -> if (userLanguage == "ar") "مخزون محدود (${fabric.stockMs}م) ⚠️" else "Low Stock (${fabric.stockMs}m) ⚠️"
+                                    else -> if (userLanguage == "ar") "متوفر بكثرة (${fabric.stockMs}م) ✔" else "In Stock (${fabric.stockMs}m) ✔"
+                                }
+
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = stockLabel,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = stockColor
+                                        )
+                                        Text(
+                                            text = "Delivery: $deliveryText",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                    LinearProgressIndicator(
+                                        progress = stockRatio,
+                                        color = stockColor,
+                                        trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(4.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            // Pricing display
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "${fabric.pricePerMeter.toInt()}",
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "EGP/m",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fabric spec details dialog
+    selectedFabricForDetail?.let { fabric ->
+        val rating = getFabricRating(fabric.id, fabric.name)
+        val reviewCount = getFabricReviewCount(fabric.id, fabric.name)
+        val gradeText = getFabricGrade(fabric.name)
+        val deliveryText = getFabricDeliveryDays(fabric.name)
+        val calculatedCost = inquiryMeters * fabric.pricePerMeter
+        val estimatedShipWeightGrams = inquiryMeters * when(fabric.category) {
+            "Wool" -> 320
+            "Denim" -> 280
+            "Cotton" -> 160
+            "Silk" -> 85
+            else -> 190
+        }
+
+        AlertDialog(
+            onDismissRequest = { selectedFabricForDetail = null },
+            modifier = Modifier.testTag("fabric_dialog_${fabric.id}"),
+            confirmButton = {
+                Button(
+                    onClick = {
+                        appViewModel.createSampleSwatchInquiry(fabric.name, inquiryMeters.toDouble(), inquiryNotes)
+                        showSuccessInquiryAlert = true
+                    },
+                    modifier = Modifier.testTag("request_swatch_button")
+                ) {
+                    Text(if (userLanguage == "ar") "أرسل طلب الحجز والعينة" else "Submit Swatch Inquiry")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedFabricForDetail = null }) {
+                    Text(if (userLanguage == "ar") "إغلاق" else "Close")
+                }
+            },
+            title = {
+                Text(
+                    text = fabric.name,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                if (showSuccessInquiryAlert) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Success",
+                            tint = Color(0xFF27AE60),
+                            modifier = Modifier.size(56.dp)
+                        )
+                        Text(
+                            text = if (userLanguage == "ar") "تم تقديم الطلب بنجاح!" else "Swatch Reservation Submitted!",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF27AE60)
+                        )
+                        Text(
+                            text = if (userLanguage == "ar") {
+                                "تم حجز العينة بمقدار ${inquiryMeters}م وإرسال الطلب للمورد Priya Nair. يمكنك تتبع التقدم في قائمة التنبيهات."
+                            } else {
+                                "Successfully reserved swatch of ${inquiryMeters}m! A direct notification has been created. Priya Nair's mills department will process the dispatch."
+                            },
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // Wide Texture Swatch
+                        FabricVisualSwatch(
+                            colorString = fabric.color,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(130.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                        )
+
+                        // Specification details
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Category: ${fabric.category}",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Loom Grade: $gradeText",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "${fabric.pricePerMeter.toInt()} EGP/meter",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Stock: ${fabric.stockMs} Meters Left",
+                                    fontSize = 11.sp,
+                                    color = if (fabric.stockMs < 250) Color(0xFFE67E22) else Color(0xFF27AE60),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Divider()
+
+                        // Description
+                        Text(
+                            text = fabric.description.ifBlank { "Verified luxury textile certified for premium sewing requirements." },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        )
+
+                        // Quality Ratings & Delivery Time Indicators
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Sartorial Rating:",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Star, contentDescription = "Star", tint = Color(0xFFF1C40F), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("$rating", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(" ($reviewCount reviews)", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                }
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "Estimated Delivery:",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = deliveryText,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        Divider()
+
+                        // Interactive Fabric Calculator Section
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = if (userLanguage == "ar") "حاسبة أمتار التفصيل وتكلفة العينات:" else "Interactive Loom & Swatch Cost Calculator:",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (userLanguage == "ar") "المقدار المطلوب: ${"%.1f".format(inquiryMeters)} متر" else "Length: ${"%.1f".format(inquiryMeters)} Meters",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Estimated Weight: ${estimatedShipWeightGrams.toInt()}g",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+
+                            Slider(
+                                value = inquiryMeters,
+                                onValueChange = { inquiryMeters = it },
+                                valueRange = 1f..15f,
+                                steps = 28,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            // Cost breakdown result card
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(text = "Base Fabric Price:", fontSize = 12.sp)
+                                        Text(text = "${"%.1f".format(inquiryMeters)}m @ ${fabric.pricePerMeter.toInt()} EGP", fontSize = 12.sp)
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(text = "Total Price Quote:", fontWeight = FontWeight.Bold)
+                                        Text(text = "${calculatedCost.toInt()} EGP", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Custom instructions note text box
+                        OutlinedTextField(
+                            value = inquiryNotes,
+                            onValueChange = { inquiryNotes = it },
+                            label = { Text(if (userLanguage == "ar") "ملاحظات تفصيلية لقص القماش..." else "Loom cut instructions / custom specs...") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(80.dp),
+                            placeholder = { Text(if (userLanguage == "ar") "مثال: أريد قطعة واحدة سليمة بطول المقدار كامل" else "e.g. Please supply a continuous uncut length") }
+                        )
+                    }
+                }
+            }
+        )
     }
 }
 

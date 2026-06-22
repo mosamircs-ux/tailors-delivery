@@ -564,4 +564,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             repository.markAllNotificationsAsRead(user.id)
         }
     }
+
+    fun createSampleSwatchInquiry(fabricName: String, metres: Double, notes: String) {
+        val user = _currentUser.value ?: return
+        viewModelScope.launch {
+            repository.insertNotification(
+                NotificationEntity(
+                    userId = user.id,
+                    title = "Swatch Reserved: $fabricName",
+                    message = "Your request for $metres meters of $fabricName has been sent to Priya Nair. Notes: $notes",
+                    linkType = "SUPPLIER_STOCK",
+                    linkId = 0
+                )
+            )
+        }
+    }
 }
