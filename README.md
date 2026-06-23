@@ -1,12 +1,99 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
 
-# Run and deploy your AI Studio app
+
+# Fashion Forge - Android Mobile App
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://ai.studio/apps/5aaaab5f-689e-47eb-931d-37ad52b4fc5d
+
+## Features
+
+- **Interactive Design Wizard**: Custom 4-step wizard for bespoke clothing options.
+- **AI Design Studio**: Instantly generate boutique-quality designs with AI assistance.
+- **Virtual Try-On**: See clothing designs overlaid in real-time.
+- **Designer Marketplace**: Explore ready-made, exclusive premium designs.
+- **Egyptian Crafts Map**: Find nearby tailors and raw fabric workshops.
+- **Supplier & Delivery Portals**: Full logistics system for tailors, suppliers, and delivery partners.
+
+---
+
+## 📱 Application Screenshots
+
+<p align="center">
+  Explore the features and interface of <b>Fashion Forge Mobile</b> through the screenshots below:
+</p>
+
+<table align="center">
+  <tr>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20121845.png" alt="Customer Dashboard" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>Customer Dashboard</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20121917.png" alt="Design Wizard" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>Design Wizard</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20121946.png" alt="AI Design Studio" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>AI Design Studio</b></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20122001.png" alt="Virtual Try-On" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>Virtual Try-On</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20122017.png" alt="Designer Marketplace" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>Designer Marketplace</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20122033.png" alt="Interactive Workshop Map" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>Interactive Workshop Map</b></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20122046.png" alt="Sizing & Profile" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>Sizing & Profile</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20122107.png" alt="Supplier Inventory" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>Supplier Inventory</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20122125.png" alt="Orders Portal" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>Orders Portal</b></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20122145.png" alt="Chat Portal" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>Chat Portal</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20122207.png" alt="Tailor Dashboard" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>Tailor Dashboard</b></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/Screenshot%202026-06-23%20122222.png" alt="Delivery & Supplier Portal" width="240" style="border-radius: 8px;" />
+      <br />
+      <sub><b>Delivery & Supplier Portal</b></sub>
+    </td>
+  </tr>
+</table>
+
+---
 
 ## Run Locally
 
